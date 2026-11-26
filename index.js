@@ -2,6 +2,23 @@
   const toast = (t) => { try { vendetta.ui.toasts.showToast(String(t)); } catch (e) {} };
   let enabled = true;
   let unpatch = null;
+  let unregister = null;
+
+  const resend = () => {
+    try {
+      const A = vendetta.metro.findByProps("toggleSelfMute");
+      if (A && A.toggleSelfMute) {
+        A.toggleSelfMute();
+        setTimeout(() => { try { A.toggleSelfMute(); } catch (e) {} }, 200);
+      }
+    } catch (e) {}
+  };
+
+  const setEnabled = (v) => {
+    enabled = v;
+    toast(v ? "Fake Deafen ON" : "Fake Deafen OFF");
+    resend();
+  };
 
   exports.onLoad = () => {
     try {
@@ -20,17 +37,36 @@
       unpatch = before("voiceStateUpdate", target, (args) => {
         if (enabled && args[0] && typeof args[0] === "object") {
           args[0] = Object.assign({}, args[0], { selfDeaf: true });
-          toast("Fake Deafen: sent");
         }
         return args;
       });
-      toast("Fake Deafen ready");
+
+      try {
+        unregister = vendetta.commands.registerCommand({
+          name: "fd",
+          displayName: "fd",
+          description: "Toggle Fake Deafen",
+          displayDescription: "Toggle Fake Deafen",
+          options: [],
+          applicationId: "-1",
+          inputType: 1,
+          type: 1,
+          execute: () => { setEnabled(!enabled); },
+        });
+      } catch (e) {
+        toast("Command not registered: " + (e && e.message ? e.message : e));
+      }
+
+      toast("Fake Deafen ready - type /fd to toggle");
     } catch (e) {
       toast("Fake Deafen error: " + (e && e.message ? e.message : e));
     }
   };
 
-  exports.onUnload = () => { if (unpatch) { unpatch(); unpatch = null; } };
+  exports.onUnload = () => {
+    if (unpatch) { unpatch(); unpatch = null; }
+    if (unregister) { unregister(); unregister = null; }
+  };
 
   exports.settings = () => {
     const { React, ReactNative } = vendetta.metro.common;
@@ -39,9 +75,9 @@
     if (!Forms.FormSwitchRow) return React.createElement(ReactNative.Text, null, "UI not found");
     return React.createElement(Forms.FormSwitchRow, {
       label: "Fake Deafen",
-      subLabel: "Appear deafened to others",
+      subLabel: "Appear deafened to others (or type /fd)",
       value: on,
-      onValueChange: (v) => { enabled = v; setOn(v); toast(v ? "Fake Deafen ON" : "Fake Deafen OFF"); },
+      onValueChange: (v) => { setOn(v); setEnabled(v); },
     });
   };
   return exports;
