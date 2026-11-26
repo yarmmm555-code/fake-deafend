@@ -6,12 +6,25 @@
 
   const resend = () => {
     try {
-      const A = vendetta.metro.findByProps("toggleSelfMute");
-      if (A && A.toggleSelfMute) {
-        A.toggleSelfMute();
-        setTimeout(() => { try { A.toggleSelfMute(); } catch (e) {} }, 200);
-      }
-    } catch (e) {}
+      const { findByStoreName } = vendetta.metro;
+      const store = findByStoreName("GatewayConnectionStore");
+      const socket = store && store.getSocket && store.getSocket();
+      const channelId = findByStoreName("SelectedChannelStore").getVoiceChannelId();
+      if (!socket || !channelId) return;
+
+      const ch = findByStoreName("ChannelStore").getChannel(channelId);
+      const ME = findByStoreName("MediaEngineStore");
+
+      socket.voiceStateUpdate({
+        guildId: ch ? ch.guild_id : undefined,
+        channelId: channelId,
+        selfMute: ME && ME.isSelfMute ? !!ME.isSelfMute() : false,
+        selfDeaf: ME && ME.isSelfDeaf ? !!ME.isSelfDeaf() : false,
+        selfVideo: false,
+      });
+    } catch (e) {
+      toast("Resend failed: " + (e && e.message ? e.message : e));
+    }
   };
 
   const setEnabled = (v) => {
