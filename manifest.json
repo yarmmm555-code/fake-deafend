@@ -3,6 +3,6 @@
   "description": "Appear deafened to others while you can still hear",
   "authors": [{ "name": "You" }],
   "main": "index.js",
-  "hash": "2",
+  "hash": "3",
   "vendetta": { "icon": "ic_headset_deafened" }
 }
