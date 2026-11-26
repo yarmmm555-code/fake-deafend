@@ -1,33 +1,36 @@
 (function (exports) {
   const toast = (t) => { try { vendetta.ui.toasts.showToast(String(t)); } catch (e) {} };
   let enabled = true;
-  let origSend = null;
+  let unpatch = null;
 
   exports.onLoad = () => {
     try {
-      origSend = WebSocket.prototype.send;
-      WebSocket.prototype.send = function (data) {
-        try {
-          if (enabled && typeof data === "string" && data.indexOf('"op":4') !== -1) {
-            const j = JSON.parse(data);
-            if (j && j.op === 4 && j.d && j.d.channel_id) {
-              j.d.self_deaf = true;
-              data = JSON.stringify(j);
-              toast("Fake Deafen: sent");
-            }
-          }
-        } catch (e) {}
-        return origSend.call(this, data);
-      };
+      const { findByStoreName } = vendetta.metro;
+      const { before } = vendetta.patcher;
+      const store = findByStoreName("GatewayConnectionStore");
+      if (!store || !store.getSocket) return toast("Fake Deafen: GatewayConnectionStore not found");
+      const socket = store.getSocket();
+      if (!socket) return toast("Fake Deafen: no socket, restart Discord");
+
+      const proto = Object.getPrototypeOf(socket);
+      const target = proto && typeof proto.voiceStateUpdate === "function" ? proto : socket;
+      if (typeof target.voiceStateUpdate !== "function")
+        return toast("Fake Deafen: voiceStateUpdate not found");
+
+      unpatch = before("voiceStateUpdate", target, (args) => {
+        if (enabled && args[0] && typeof args[0] === "object") {
+          args[0] = Object.assign({}, args[0], { selfDeaf: true });
+          toast("Fake Deafen: sent");
+        }
+        return args;
+      });
       toast("Fake Deafen ready");
     } catch (e) {
       toast("Fake Deafen error: " + (e && e.message ? e.message : e));
     }
   };
 
-  exports.onUnload = () => {
-    if (origSend) { WebSocket.prototype.send = origSend; origSend = null; }
-  };
+  exports.onUnload = () => { if (unpatch) { unpatch(); unpatch = null; } };
 
   exports.settings = () => {
     const { React, ReactNative } = vendetta.metro.common;
