@@ -1,29 +1,33 @@
 (function (exports) {
-  const { findByProps } = vendetta.metro;
-  const { before } = vendetta.patcher;
   const toast = (t) => { try { vendetta.ui.toasts.showToast(String(t)); } catch (e) {} };
-
   let enabled = true;
-  let unpatches = [];
+  let origSend = null;
 
   exports.onLoad = () => {
     try {
-      const mod = findByProps("voiceStateUpdate");
-      if (!mod) return toast("Fake Deafen: module not found");
-      unpatches.push(
-        before("voiceStateUpdate", mod, (args) => {
-          if (enabled && args[0] && typeof args[0] === "object") {
-            args[0].selfDeaf = true;
+      origSend = WebSocket.prototype.send;
+      WebSocket.prototype.send = function (data) {
+        try {
+          if (enabled && typeof data === "string" && data.indexOf('"op":4') !== -1) {
+            const j = JSON.parse(data);
+            if (j && j.op === 4 && j.d && j.d.channel_id) {
+              j.d.self_deaf = true;
+              data = JSON.stringify(j);
+              toast("Fake Deafen: sent");
+            }
           }
-        })
-      );
+        } catch (e) {}
+        return origSend.call(this, data);
+      };
       toast("Fake Deafen ready");
     } catch (e) {
       toast("Fake Deafen error: " + (e && e.message ? e.message : e));
     }
   };
 
-  exports.onUnload = () => { unpatches.forEach((u) => u()); unpatches = []; };
+  exports.onUnload = () => {
+    if (origSend) { WebSocket.prototype.send = origSend; origSend = null; }
+  };
 
   exports.settings = () => {
     const { React, ReactNative } = vendetta.metro.common;
